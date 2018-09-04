@@ -134,11 +134,49 @@ class QuestionFollow
     QuestionFollow.new(question_follow.first) 
   end
   
+  def self.followers_for_question_id(question_id)
+    followers = QuestionsDatabase.instance.execute(<<-SQL, question_id)
+      SELECT
+        *
+      FROM 
+        question_follows
+      JOIN 
+        users ON question_follows.user_id = users.id
+      WHERE
+        question_id = ?
+    SQL
+    followers.map { |f| User.new(f) }
+  end 
+  
+  def self.followed_questions_for_user_id(user_id)
+    followed_questions = QuestionsDatabase.instance.execute(<<-SQL, user_id)
+      SELECT
+        *
+      FROM
+        question_follows
+      JOIN 
+        questions ON question_follows.question_id = questions.id 
+      WHERE 
+        questions.user_id = ?
+    SQL
+    followed_questions.map { |q| Question.new(q) }
+  end 
+  
   def initialize(options)
     @id = options['id']
     @question_id = options['question_id']  
     @user_id = options['user_id']
-  end  
+  end 
+   
+  def create 
+    QuestionsDatabase.instance.execute(<<-SQL, @question_id, @user_id)
+      INSERT INTO 
+        question_follows (question_id, user_id)
+      VALUES
+        (?, ?)
+    SQL
+    @id = QuestionsDatabase.instance.last_insert_row_id
+  end 
 end
 
 class QuestionLike
@@ -242,7 +280,6 @@ class Reply
         reply_id = ?
     SQL
     replies.map { |reply| Reply.new(reply) }
-    
   end   
 end 
 
