@@ -63,7 +63,21 @@ class User
     Reply.find_by_user_id(@id)
   end
   
+  def followed_questions
+    QuestionFollow.followed_questions_for_user_id(@id)
+  end
+  
+  def liked_questions
+    QuestionLike.liked_questions_for_user_id(@id)
+  end
+  
 end 
+
+
+
+
+
+
 
 class Question
   attr_reader :id, :title, :body, :user_id
@@ -93,6 +107,14 @@ class Question
     questions.map { |q| Question.new(q) }
   end
   
+  def self.most_followed(n)
+    QuestionFollow.most_followed_questions(n)
+  end
+  
+  def self.most_liked(n)
+    QuestionLike.most_liked_questions(n)
+  end
+  
   def initialize(options)
     @id = options['id']
     @title = options['title']
@@ -117,7 +139,26 @@ class Question
   def replies
     Reply.find_by_question_id(@id)
   end
+  
+  def followers
+    QuestionFollow.followers_for_question_id(@id)
+  end
+  
+  def likers 
+    QuestionLike.likers_for_question_id(@id)
+  end 
+  
+  def num_likes 
+    QuestionLike.num_likes_for_question_id(@id)
+  end 
+  
 end 
+
+
+
+
+
+
 
 class QuestionFollow
   attr_reader :id, :question_id, :user_id
@@ -157,10 +198,27 @@ class QuestionFollow
       JOIN 
         questions ON question_follows.question_id = questions.id 
       WHERE 
-        questions.user_id = ?
+        question_follows.user_id = ?
     SQL
     followed_questions.map { |q| Question.new(q) }
-  end 
+  end
+  
+  def self.most_followed_questions(n)
+    mfquestions_qid = QuestionsDatabase.instance.execute(<<-SQL, n)
+      SELECT
+        question_id
+      FROM
+        question_follows
+      JOIN
+        questions ON question_follows.question_id = questions.id
+      GROUP BY 
+        question_id
+      ORDER BY 
+        COUNT(questions.user_id) DESC
+      LIMIT ?
+    SQL
+    mfquestions_qid.map { |hash| Question.find_by_id(hash['question_id']) }
+  end
   
   def initialize(options)
     @id = options['id']
@@ -179,6 +237,15 @@ class QuestionFollow
   end 
 end
 
+
+
+
+
+
+
+
+
+
 class QuestionLike
   attr_reader :id, :question_id, :user_id
   
@@ -194,12 +261,88 @@ class QuestionLike
     QuestionLike.new(question_like.first) 
   end
   
+  def self.likers_for_question_id(question_id)
+    likers_uid = QuestionsDatabase.instance.execute(<<-SQL, question_id)
+      SELECT
+        user_id
+      FROM
+        question_likes
+      JOIN
+        users ON question_likes.user_id = users.id
+      WHERE
+        question_id = ?
+    SQL
+    likers_uid.map { |hash| User.find_by_id(hash['user_id']) }
+  end
+  
+  def self.num_likes_for_question_id(question_id)
+    likers_count = QuestionsDatabase.instance.execute(<<-SQL, question_id)
+      SELECT
+        COUNT(user_id)
+      FROM
+        question_likes
+      JOIN
+        users ON question_likes.user_id = users.id
+      WHERE
+        question_id = ?
+    SQL
+    likers_count.first.values.first
+  end
+  
+  def self.liked_questions_for_user_id(user_id)
+    liked_questions_qid = QuestionsDatabase.instance.execute(<<-SQL, user_id)
+      SELECT
+        question_id
+      FROM 
+        question_likes 
+      JOIN 
+        users ON question_likes.user_id = users.id
+      WHERE 
+        user_id = ?
+    SQL
+    liked_questions_qid.map { |hash| Question.find_by_id(hash['question_id']) }
+  end 
+  
+  def self.most_liked_questions(n)
+    ml_questions_ids = QuestionsDatabase.instance.execute(<<-SQL, n)
+      SELECT
+        question_id
+      FROM
+        question_likes
+      JOIN
+        questions ON question_likes.question_id = questions.id
+      GROUP BY 
+        question_id
+      ORDER BY 
+        COUNT(questions.user_id) DESC
+      LIMIT ?
+    SQL
+    ml_questions_ids.map { |hash| Question.find_by_id(hash['question_id']) }
+  end 
+  
   def initialize(options)
     @id = options['id']
     @question_id = options['question_id']  
     @user_id = options['user_id']
-  end  
+  end
+  
+  def create 
+    QuestionsDatabase.instance.execute(<<-SQL, @question_id, @user_id)
+      INSERT INTO 
+        question_likes(question_id, user_id)
+      VALUES
+        (?, ?)
+    SQL
+    @id = QuestionsDatabase.instance.last_insert_row_id
+  end
 end 
+
+
+
+
+
+
+
 
 class Reply
   attr_reader :id, :question_id, :user_id
