@@ -1,5 +1,6 @@
 require 'sqlite3'
 require 'singleton'
+require_relative 'model_base.rb'
 
 class QuestionsDatabase < SQLite3::Database
   include Singleton
@@ -10,21 +11,22 @@ class QuestionsDatabase < SQLite3::Database
   end  
 end
 
-class User
+class User < ModelBase
   attr_accessor :fname, :lname
   attr_reader :id
 
   def self.find_by_id(id)
-    user = QuestionsDatabase.instance.execute(<<-SQL, id)
-      SELECT
-        *
-      FROM 
-        users 
-      WHERE
-        id = ?
-    SQL
-  
-    User.new(user.first) 
+    super(users, id)
+    # user = QuestionsDatabase.instance.execute(<<-SQL, id)
+    #   SELECT
+    #     *
+    #   FROM 
+    #     users 
+    #   WHERE
+    #     id = ?
+    # SQL
+    # 
+    # User.new(user.first) 
   end
   
   def self.find_by_name(fname, lname)
