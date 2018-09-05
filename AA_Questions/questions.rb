@@ -11,7 +11,8 @@ class QuestionsDatabase < SQLite3::Database
 end
 
 class User
-  attr_reader :id, :fname, :lname
+  attr_accessor :fname, :lname
+  attr_reader :id
 
   def self.find_by_id(id)
     user = QuestionsDatabase.instance.execute(<<-SQL, id)
@@ -45,7 +46,8 @@ class User
     @lname = options['lname']  
   end
   
-  def create 
+  def save
+    return self.update if !!@id
     QuestionsDatabase.instance.execute(<<-SQL, @fname, @lname)
       INSERT INTO 
         users (fname, lname)
@@ -54,6 +56,19 @@ class User
     SQL
     @id = QuestionsDatabase.instance.last_insert_row_id
   end
+  
+  def update
+    QuestionsDatabase.instance.execute(<<-SQL, @fname, @lname, @id)
+      UPDATE
+        users
+      SET
+        fname = ?, lname = ?
+      WHERE
+        id = ?
+    SQL
+    self
+  end
+    
   
   def authored_questions
     Question.find_by_author_id(@id)
@@ -134,7 +149,7 @@ class Question
     @user_id = options['user_id']  
   end
   
-  def create 
+  def save 
     QuestionsDatabase.instance.execute(<<-SQL, @title, @body, @user_id)
       INSERT INTO 
         questions (title, body, user_id)
@@ -238,7 +253,7 @@ class QuestionFollow
     @user_id = options['user_id']
   end 
    
-  def create 
+  def save 
     QuestionsDatabase.instance.execute(<<-SQL, @question_id, @user_id)
       INSERT INTO 
         question_follows (question_id, user_id)
@@ -338,7 +353,7 @@ class QuestionLike
     @user_id = options['user_id']
   end
   
-  def create 
+  def save 
     QuestionsDatabase.instance.execute(<<-SQL, @question_id, @user_id)
       INSERT INTO 
         question_likes(question_id, user_id)
@@ -402,7 +417,7 @@ class Reply
     @body = options['body']  
   end
   
-  def create 
+  def save 
     QuestionsDatabase.instance.execute(<<-SQL, @question_id, @user_id, @reply_id, @body)
       INSERT INTO 
         replies (question_id, user_id, reply_id, body)
